@@ -6,8 +6,14 @@
     "lib": ["es2021", "DOM"],
     "module": "commonjs",
     "target": "es2021",
+
+    // type checking
     "strict": true,
     "noUncheckedIndexedAccess": true,
+    "noImplicitAny": true,
+    "noUnusedParameters": true,
+    "noUnusedLocals": true,
+
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,

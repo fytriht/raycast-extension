@@ -105,7 +105,7 @@ describe("SetappClient", () => {
   );
 
   test("fetch active devices", async () => {
-    const fetch = jest.spyOn(globalThis, "fetch").mockImplementation(async (a, b) => {
+    const fetch = jest.spyOn(globalThis, "fetch").mockImplementation(async () => {
       return {
         ok: true,
         async json() {
@@ -288,7 +288,7 @@ describe("SetappClient", () => {
   });
 
   test("disposing", async () => {
-    jest.spyOn(globalThis, "fetch").mockImplementation(async (a, init) => {
+    jest.spyOn(globalThis, "fetch").mockImplementation(async (_, init) => {
       init?.signal?.throwIfAborted();
       return undefined as any
     });
