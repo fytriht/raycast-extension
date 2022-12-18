@@ -2,7 +2,7 @@
   "$schema": "https://www.raycast.com/schemas/extension.json",
   "name": "fytriht",
   "title": "fytriht",
-  "description": "zhi's arsenal",
+  "description": "raycast extension",
   "icon": "command-icon.png",
   "author": "fytriht",
   "owner": "fytriht-org",
