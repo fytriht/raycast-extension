@@ -1,5 +1,5 @@
 import { Request } from "node-fetch";
-import { SetappClient, TokenStore } from "./index";
+import { SetappClient, TokenStore } from "./disconnectSetappDevices";
 import { LocalStorage } from "./raycast";
 
 (globalThis as any).Request = Request;

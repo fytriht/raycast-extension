@@ -12,8 +12,8 @@
   "license": "MIT",
   "commands": [
     {
-      "name": "index",
-      "title": "Reset Setapp Devices",
+      "name": "disconnectSetappDevices",
+      "title": "Disconnect Setapp Devices",
       "description": "Template with a plain detail view",
       "mode": "view",
       "preferences": [
