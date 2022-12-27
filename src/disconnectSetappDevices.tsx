@@ -10,33 +10,24 @@ export interface PreferenceValues {
 
 const preferenceValues = getPreferenceValues<PreferenceValues>();
 
-export interface ITokenStore {
-  getToken(): Promise<string>
-  getRefreshToken(): Promise<string>
-  updateTokens(token: string, refreshToken: string): Promise<void>
-}
-
-export class TokenStore implements ITokenStore {
-  private KEY_TOKEN = "Token";
-  private KEY_REFRESH_TOKEN = "RefreshToken";
-
-  constructor(private defaultToken: string, private defaultRefreshToken: string) {}
-
-  async getToken(): Promise<string> {
-    return (await LocalStorage.getItem(this.KEY_TOKEN)) ?? this.defaultToken;
-  }
-
-  async getRefreshToken(): Promise<string> {
-    return (await LocalStorage.getItem(this.KEY_REFRESH_TOKEN)) ?? this.defaultRefreshToken;
-  }
-
-  async updateTokens(token: string, refreshToken: string) {
-    await Promise.all([
-      LocalStorage.setItem(this.KEY_TOKEN, token),
-      LocalStorage.setItem(this.KEY_REFRESH_TOKEN, refreshToken),
-    ]);
-  }
-}
+const tokenStore = ((defaultToken: string, defaultRefreshToken: string) => {
+  const KEY_TOKEN = "Token";
+  const KEY_REFRESH_TOKEN = "RefreshToken";
+  return {
+    async getToken(): Promise<string> {
+      return (await LocalStorage.getItem(KEY_TOKEN)) ?? defaultToken;
+    },
+    async getRefreshToken(): Promise<string> {
+      return (await LocalStorage.getItem(KEY_REFRESH_TOKEN)) ?? defaultRefreshToken;
+    },
+    async updateTokens(token: string, refreshToken: string) {
+      await Promise.all([
+        LocalStorage.setItem(KEY_TOKEN, token),
+        LocalStorage.setItem(KEY_REFRESH_TOKEN, refreshToken),
+      ]);
+    },
+  };
+})(preferenceValues.setappToken, preferenceValues.setappRefreshToken);
 
 export type Logger = (text: string) => void;
 
@@ -45,105 +36,76 @@ export interface Device {
   name: string;
 }
 
+export async function main(logger: Logger) {
+  async function request(req: Request): Promise<Response> {
+    const resp = await fetch(
+      new Request(req, {
+        headers: {
+          Authorization: `Bearer ${await tokenStore.getToken()}`,
+          Accept: "application/json",
+        },
+      })
+    );
+    if (resp.ok) {
+      return resp;
+    } else if (resp.status === 401) {
+      logger("token expired, refreshing");
+      const req = new Request("https://user-api.setapp.com/v1/token", {
+        method: "POST",
+        body: JSON.stringify({ refresh_token: await tokenStore.getRefreshToken() }),
+      });
+      const resp = await request(req);
+      const data = await resp.json().then((json): { token: string; refresh_token: string } => json.data);
+      await tokenStore.updateTokens(data.token, data.refresh_token);
+
+      logger("token refreshed, start resending request");
+      return request(req);
+    } else {
+      throw Error(`request error: ${req.url}`);
+    }
+  }
+
+  let devices: Device[];
+  {
+    logger("start fetching devices.");
+    const req = new Request("https://user-api.setapp.com/v1/devices");
+    const resp = await request(req);
+    devices = await resp.json().then((json): Device[] => json.data);
+  }
+
+  if (devices.length > 0) {
+    logger(`fetched devices: ${devices.map((device) => device.name).join(", ")}`);
+    assert(devices.length === 1, `Unexpected device count, got ${devices.length} devices.`);
+    const deviceToBeDisconnect = devices.at(0)!;
+
+    logger(`disconnecting device of id: ${deviceToBeDisconnect.id}`);
+    const req = new Request(`https://user-api.setapp.com/v1/devices/${deviceToBeDisconnect.id}`, { method: "DELETE" });
+    await request(req);
+    logger("device disconnected");
+
+    await Clipboard.copy(preferenceValues.setappPassword);
+    logger("done.");
+  } else {
+    logger("there is no active devices, closing...");
+  }
+
+  await delay(4000);
+  await closeMainWindow({ popToRootType: PopToRootType.Immediate });
+}
+
 export function delay(ms: number) {
   return new Promise((resolve) => {
     setTimeout(resolve, ms);
   });
 }
 
-export class SetappClient {
-  private abortController = new AbortController();
-
-  constructor(private tokenStore: ITokenStore, private logger: Logger) {}
-
-  async fetchActiveDevices(): Promise<Device[]> {
-    this.logger("start fetching devices.");
-    const req = new Request("https://user-api.setapp.com/v1/devices");
-    const resp = await this.request(req);
-    const devices = await resp.json().then((json): Device[] => json.data);
-    if (devices.length > 0) {
-      this.logger(`fetched devices: ${devices.map((device) => device.name).join(", ")}`);
-    }
-    return devices;
-  }
-
-  async disconnectDeviceById(id: number): Promise<void> {
-    this.logger(`disconnecting device of id: ${id}`);
-    const req = new Request(`https://user-api.setapp.com/v1/devices/${id}`, { method: "DELETE" });
-    await this.request(req);
-    this.logger("device disconnected");
-  }
-
-  async dispose() {
-    this.abortController.abort();
-  }
-
-  private async refreshToken() {
-    const req = new Request("https://user-api.setapp.com/v1/token", {
-      method: "POST",
-      body: JSON.stringify({ refresh_token: await this.tokenStore.getRefreshToken() }),
-    });
-    const resp = await this.request(req);
-    const data = await resp.json().then((json): { token: string; refresh_token: string } => json.data);
-    await this.tokenStore.updateTokens(data.token, data.refresh_token);
-  }
-
-  private async request(request: Request): Promise<Response> {
-    request = new Request(request, {
-      headers: {
-        Authorization: `Bearer ${await this.tokenStore.getToken()}`,
-        Accept: "application/json",
-      },
-    });
-    const resp = await fetch(request, { signal: this.abortController.signal });
-    if (resp.ok) {
-      return resp;
-    } else if (resp.status === 401) {
-      this.logger("token expired, refreshing");
-      await this.refreshToken();
-      this.logger("token refreshed, start resending request");
-      return this.request(request);
-    } else {
-      throw Error(`request error: ${request.url}`);
-    }
-  }
-}
-
-export function createSetappClient(logger: Logger) {
-  const tokenStore = new TokenStore(preferenceValues.setappToken, preferenceValues.setappRefreshToken);
-  return new SetappClient(tokenStore, logger);
-}
-
 export default function () {
   const [texts, setTexts] = useState<string[]>([]);
 
   useEffect(() => {
-    const log = (text: string) => {
+    main((text: string) => {
       setTexts((texts) => texts.concat(text));
-    };
-    const setappClient = createSetappClient(log);
-
-    async function fn() {
-      const devices = await setappClient.fetchActiveDevices();
-      if (devices.length === 0) {
-        log("there is no active devices, closing...");
-        await delay(4000);
-        await closeMainWindow({popToRootType: PopToRootType.Immediate });
-        return;
-      }
-      assert(devices.length === 1, `Unexpected device count, got ${devices.length} devices.`);
-      const deviceToBeDisconnect = devices.at(0)!;
-      await setappClient.disconnectDeviceById(deviceToBeDisconnect.id);
-      await Clipboard.copy(preferenceValues.setappPassword);
-      log("done.");
-      await delay(4000);
-      await closeMainWindow({popToRootType: PopToRootType.Immediate });
-    }
-    fn();
-
-    return () => {
-      setappClient.dispose();
-    };
+    });
   }, []);
 
   return <Detail markdown={texts.map((t) => `* ${t}`).join("\n")} />;
