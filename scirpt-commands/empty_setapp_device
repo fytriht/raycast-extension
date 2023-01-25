@@ -1,0 +1,8 @@
+#!/usr/bin/env -S fish
+
+# Required parameters:
+# @raycast.schemaVersion 1
+# @raycast.title Disconnect Setapp Devices
+# @raycast.mode fullOutput
+
+empty_setapp_device

@@ -10,37 +10,6 @@
     "Developer Tools"
   ],
   "license": "MIT",
-  "commands": [
-    {
-      "name": "disconnectSetappDevices",
-      "title": "Disconnect Setapp Devices",
-      "description": "Template with a plain detail view",
-      "mode": "view",
-      "preferences": [
-        {
-          "name": "setappToken",
-          "description": "Setapp token",
-          "type": "password",
-          "required": true,
-          "title": "Setapp token"
-        },
-        {
-          "name": "setappRefreshToken",
-          "description": "Setapp refresh token",
-          "type": "password",
-          "required": true,
-          "title": "Setapp refresh token"
-        },
-        {
-          "name": "setappPassword",
-          "description": "Setapp password",
-          "type": "password",
-          "required": true,
-          "title": "Setapp password"
-        }
-      ]
-    }
-  ],
   "dependencies": {
     "@raycast/api": "1.44.0"
   },
